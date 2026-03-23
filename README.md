@@ -12,10 +12,10 @@ A utility for SHORK Operating Systems that changes the console terminal's foregr
 
 ### Changing font (full path)
 
-    shorkfont -f /home/terminus.psf
+    shorkfont -n /home/terminus.psf
 
 ### Changing font (name only)
 
-    shorkfont -f Lat15-Fixed16
+    shorkfont -n Lat15-Fixed16
 
 _Note: for this to work, the font file must be stored in `/usr/share/consolefonts`_

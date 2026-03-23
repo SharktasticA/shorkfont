@@ -231,7 +231,7 @@ void showArgumentsList(void)
     printf("%s\n", usage1);
 
     char usage2[72];
-    snprintf(usage2, sizeof(usage2), "       shorkfont [-f|--font] {font_name | font_path | default}");
+    snprintf(usage2, sizeof(usage2), "       shorkfont [-n|--name] {font_name | font_path | default}");
     formatNewLines(usage2, TERM_SIZE.ws_col);
     printf("%s\n\n", usage2);
 
@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
                 return 0;
             }
         }
-        else if (strcmp(argv[1], "-f") == 0 || strcmp(argv[1], "--font") == 0)
+        else if (strcmp(argv[1], "-n") == 0 || strcmp(argv[1], "--name") == 0)
         {
             if (strcmp(argv[2], "default") == 0)
             {
