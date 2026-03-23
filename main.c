@@ -1,6 +1,6 @@
 /*
     ######################################################
-    ##             SHORK UTILITY - SHORKCOL             ##
+    ##             SHORK UTILITY - SHORKFONT            ##
     ######################################################
     ## A utility for SHORK 486 that changes the         ##
     ## terminal's foreground (text) colour              ##
@@ -13,6 +13,7 @@
 
 
 
+#include <ctype.h>
 #include <sys/ioctl.h>
 #include <signal.h>
 #include <stdio.h>
@@ -24,13 +25,18 @@
 
 
 typedef struct {
-    const char *name;
-    const char *ascii;
+    char *name;
+    char *ascii;
 } Colour;
 
+typedef struct {
+    Colour colour;
+    char *font;
+} Config;
 
 
-static const Colour colourTable[] = {
+
+static const Colour COLOURS[] = {
     {"blue",           "0;34"},
     {"blue_bright",    "0;1;34"},
     {"cyan",           "0;36"},
@@ -47,9 +53,11 @@ static const Colour colourTable[] = {
     {"yellow",         "0;33"},
     {"yellow_bright",  "0;1;33"}
 };
-
-static const char *colours = "blue | blue_bright | cyan | cyan_bright | green | green_bright | grey | magenta | magenta_bright | red | red_bright | white | white_bright | yellow | yellow_bright";
-static struct winsize termSize;
+static const char *COLOURS_STR = "blue | blue_bright | cyan | cyan_bright | green | green_bright | grey | magenta | magenta_bright | red | red_bright | white | white_bright | yellow | yellow_bright";
+static Config CONFIG;
+static const char *DOT_CONF = "/etc/shorkfont.conf";
+static const char *FONT_DIR = "/usr/share/consolefonts";
+static struct winsize TERM_SIZE;
 
 
 
@@ -75,6 +83,17 @@ void applyColour(char *ascii)
 
     // Rebuild terminfo
     system("tic -x -1 -o /usr/share/terminfo /usr/share/terminfo/src/terminfo.src");
+}
+
+/**
+ * Apply the selected font
+ * @param font Selected font's path
+ */
+void applyFont(char *font)
+{
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "setfont %s", font);
+    system(cmd);
 }
 
 /**
@@ -124,32 +143,6 @@ int formatNewLines(char *buffer, int width)
 }
 
 /**
- * Gets the current colour from shorkcol.conf.
- * @returns Name of the current colour
- */
-char *getCurrentColour(void)
-{
-    FILE *stream = fopen("/etc/shorkcol.conf", "r");
-    if (!stream) return strdup("white");
-
-    static char line[256];
-    while (fgets(line, sizeof(line), stream))
-    {
-        if (strncmp(line, "NAME=", 5) == 0)
-        {
-            char *name = line + 6;
-            name[strcspn(name, "\r\n")] = '\0';
-            name[strlen(name) - 1] = '\0';
-            fclose(stream);
-            return strdup(name);
-        }
-    }
-
-    fclose(stream);
-    return strdup("white");
-}
-
-/**
  * @return winsize struct containing the current terminal size in columns and rows
  */
 struct winsize getTerminalSize(void)
@@ -174,66 +167,167 @@ void killParentTerminal(void)
 }
 
 /**
- * @param name Selected colour's name
- * @param ascii Selected colour's ASCII value
+ * Loads the current values from DOT_CONF.
  */
-void printAppliedColour(const char *name, const char *ascii)
+Config loadConf(void)
 {
-    printf("\033[%smApplied colour: %s\033[0m\n", ascii, name);
+    Config config;
+
+    // Default/fallback values that mirror the initial DOT_CONF provided by SHORK 486
+    config.colour.name = "white";
+    config.colour.ascii = "0;37";
+    config.font = "default";
+
+    FILE *stream = fopen(DOT_CONF, "r");
+    if (stream)
+    {
+        char line[256];
+
+        while (fgets(line, sizeof(line), stream))
+        {
+            line[strcspn(line, "\r\n")] = '\0';
+
+            char *value = strchr(line, '=');
+            if (!value) continue;
+
+            value++;
+
+            if (*value == '"')
+            {
+                value++;
+                char *end = strrchr(value, '"');
+                if (end) *end = '\0';
+            }
+
+            if (strncmp(line, "NAME=", 5) == 0)
+            {
+                config.colour.name = strdup(value);
+            }
+            else if (strncmp(line, "ASCII=", 6) == 0)
+            {
+                config.colour.ascii = strdup(value);
+            }
+            else if (strncmp(line, "FONT=", 5) == 0)
+            {
+                config.font = strdup(value);
+            }
+        }
+
+        fclose(stream);
+    }
+
+    return config;
 }
 
 void showArgumentsList(void)
 {
-    char cmdDesc[90] = "Changes the terminal's foreground (font) colour.\n\n";
-    formatNewLines(cmdDesc, termSize.ws_col);
-    printf("%s\n", cmdDesc);
+    char cmdDesc[64] = "Changes the console's foreground colour or font.";
+    formatNewLines(cmdDesc, TERM_SIZE.ws_col);
+    printf("%s\n\n", cmdDesc);
 
-    char usage[200];
-    snprintf(usage, 200, "Usage: shorkcol {%s}\n", colours);
-    formatNewLines(usage, termSize.ws_col);
-    printf("%s", usage);
+    char usage1[256];
+    snprintf(usage1, sizeof(usage1), "Usage: shorkfont [-c|--colour] {%s}", COLOURS_STR);
+    formatNewLines(usage1, TERM_SIZE.ws_col);
+    printf("%s\n", usage1);
 
-    char currCol[60];
-    snprintf(currCol, 60, "Current colour: %s\n", getCurrentColour());
-    formatNewLines(currCol, termSize.ws_col);
-    printf("%s", currCol);
+    char usage2[72];
+    snprintf(usage2, sizeof(usage2), "       shorkfont [-f|--font] {font_name | font_path | default}");
+    formatNewLines(usage2, TERM_SIZE.ws_col);
+    printf("%s\n\n", usage2);
+
+    printf("Current colour: %s\n", CONFIG.colour.name);
+
+    char currFont[256];
+    snprintf(currFont, sizeof(currFont), "Current font: %s", CONFIG.font);
+    formatNewLines(currFont, TERM_SIZE.ws_col);
+    printf("%s\n", currFont);
 }
 
 /**
- * Validates if an inputted string is in the shorkcol colour palette.
+ * Validates if an inputted string is in the shorkfont colour palette.
  * @param input Input string to validate for colour
  * @returns ASCII escape code for the inputted colour if valid; NULL if invalid
  */
 char *validateColour(char *input)
 {
-    size_t count = sizeof(colourTable) / sizeof(colourTable[0]);
+    size_t count = sizeof(COLOURS) / sizeof(COLOURS[0]);
     for (size_t i = 0; i < count; i++)
-        if (strcmp(input, colourTable[i].name) == 0)
-            return (char*)colourTable[i].ascii;
+        if (strcmp(input, COLOURS[i].name) == 0)
+            return (char*)COLOURS[i].ascii;
 
-    printf("Invalid colour: %s\n", input);
-    char avail[200];
-    snprintf(avail, sizeof(avail), "Available colours: %s\n", colours);
-    formatNewLines(avail, termSize.ws_col);
-    printf("%s", avail);
+    char err[480];
+    snprintf(err, sizeof(err), "Invalid colour \"%s\". Available options: %s\n", input, COLOURS_STR);
+    formatNewLines(err, TERM_SIZE.ws_col);
+    printf("%s", err);
     return NULL;
 }
 
 /**
- * Writes selected colour's new values to a .conf file.
- * @param name Selected colour's name
- * @param ascii Selected colour's ASCII value
+ * Validates if an inputted string is an existing console font file.
+ * @param input Input string to validate for font
+ * @returns Path for the inputted font if valid; NULL if invalid
  */
-void writeConf(char *name, char *ascii)
+char *validateFont(char *input)
 {
-    FILE *stream = fopen("/etc/shorkcol.conf", "w");
+    // Assume font is in FONT_DIR
+    if (!strstr(input, "/") && !strstr(input, "."))
+    {
+        static char fontPath[480];
+        snprintf(fontPath, sizeof(fontPath), "%s/%s.psf", FONT_DIR, input);
+        if (access(fontPath, F_OK) == 0)
+            return fontPath;
+    }
+    // Assume full font path
+    else
+    {
+        size_t inputLen = strlen(input);
+        const char *ext = ".psf";
+        size_t extLen = strlen(ext);
+
+        if (inputLen >= extLen)
+        {
+            const char *end = input + inputLen - extLen;
+
+            int extValid = 1;
+            for (size_t i = 0; i < extLen; i++)
+            {
+                if (tolower((unsigned char)end[i]) != ext[i])
+                {
+                    extValid = 0;
+                    break;
+                }
+            }
+
+            if (extValid)
+                if (access(input, F_OK) == 0)
+                    return input;
+        }
+    }
+
+    char err[480];
+    snprintf(err, sizeof(err), "Invalid font \"%s\". Please ensure it is a PC Screen Font (.psf) file, and that the full path to the font is provided or the font name exists in \"%s\".\n", input, FONT_DIR);
+    formatNewLines(err, TERM_SIZE.ws_col);
+    printf("%s", err);
+    return NULL;
+}
+
+/**
+ * Writes new values to a .conf file.
+ * @param name New colour name
+ * @param ascii New colour ASCII value
+ * @param font New font
+ */
+void writeConf(char *name, char *ascii, char *font)
+{
+    FILE *stream = fopen(DOT_CONF, "w");
     if (!stream)
     {
-        perror("ERROR: failed to create or open /etc/shorkcol.conf");
+        perror("ERROR: failed to create or open /etc/shorkfont.conf");
         return;
     }
     fprintf(stream, "NAME=\"%s\"\n", name);
     fprintf(stream, "ASCII=\"%s\"\n", ascii);
+    fprintf(stream, "FONT=\"%s\"\n", font);
     fclose(stream);
 }
 
@@ -241,20 +335,50 @@ void writeConf(char *name, char *ascii)
 
 int main(int argc, char *argv[])
 {
-    termSize = getTerminalSize();
+    TERM_SIZE = getTerminalSize();
+    CONFIG = loadConf();
 
-    if (argc == 1 || argc > 2) showArgumentsList();
+    if (argc != 3) showArgumentsList();
     else
     {
-        char *ascii = validateColour(argv[1]);
-        if (ascii)
+        if (strcmp(argv[1], "-c") == 0 || strcmp(argv[1], "--colour") == 0)
         {
-            writeConf(argv[1], ascii);
-            applyColour(ascii);
-            killParentTerminal();
-            printAppliedColour(argv[1], ascii);
-            return 0;
+            char *ascii = validateColour(argv[2]);
+            if (ascii)
+            {
+                writeConf(argv[2], ascii, CONFIG.font);
+                applyColour(ascii);
+                killParentTerminal();
+                printf("\033[%smApplied colour: %s\033[0m\n", ascii, argv[2]);
+                return 0;
+            }
         }
+        else if (strcmp(argv[1], "-f") == 0 || strcmp(argv[1], "--font") == 0)
+        {
+            if (strcmp(argv[2], "default") == 0)
+            {
+                writeConf(CONFIG.colour.name, CONFIG.colour.ascii, "default");
+
+                char out[160];
+                snprintf(out, sizeof(out), "Applied font: default. If a font other than \"default\" was previously applied, you must restart your computer before this change will take effect.\n");
+                formatNewLines(out, TERM_SIZE.ws_col);
+                printf("%s", out);
+
+                return 1;
+            }
+            else
+            {
+                char *font = validateFont(argv[2]);
+                if (font)
+                {
+                    writeConf(CONFIG.colour.name, CONFIG.colour.ascii, font);
+                    applyFont(font);
+                    printf("Applied font: %s\n", font);
+                    return 1;
+                }
+            }
+        }
+        else showArgumentsList();
     }
 
     return 1;

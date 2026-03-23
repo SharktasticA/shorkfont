@@ -8,21 +8,21 @@ LDFLAGS += -static -Wl,--gc-sections -s
 
 SRC = main.c
 
-shorkcol: $(SRC)
-	$(CC) $(CFLAGS) $(SRC) -o shorkcol $(LDFLAGS)
-	$(STRIP) shorkcol
+shorkfont: $(SRC)
+	$(CC) $(CFLAGS) $(SRC) -o shorkfont $(LDFLAGS)
+	$(STRIP) shorkfont
 
 PREFIX ?= /usr
 BINDIR = $(PREFIX)/libexec
 
-install: shorkcol
+install: shorkfont
 	install -d $(DESTDIR)$(BINDIR)
-	install -m 755 shorkcol $(DESTDIR)$(BINDIR)
+	install -m 755 shorkfont $(DESTDIR)$(BINDIR)
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/shorkcol
+	rm -f $(DESTDIR)$(BINDIR)/shorkfont
 
 clean:
-	rm -f shorkcol
+	rm -f shorkfont
 
 .PHONY: install uninstall clean
