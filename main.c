@@ -14,6 +14,7 @@
 
 
 #include <ctype.h>
+#include <fcntl.h>
 #include <sys/ioctl.h>
 #include <signal.h>
 #include <stdio.h>
@@ -65,7 +66,7 @@ static struct winsize TERM_SIZE;
  * Apply the selected colour to core system files
  * @param ascii Selected colour's ASCII value
  */
-void applyColour(char *ascii)
+void applyColourFiles(char *ascii)
 {
     char cmd[256];
 
@@ -78,11 +79,32 @@ void applyColour(char *ascii)
     system(cmd);
 
     // Write to terminfo.src
-    snprintf(cmd, sizeof(cmd), "sed -i 's|\\\\E\\[[0-9;]*m|\\\\E[%sm|g' /usr/share/terminfo/src/terminfo.src", ascii);
-    system(cmd);
+    //snprintf(cmd, sizeof(cmd), "sed -i 's|\\\\E\\[[0-9;]*m|\\\\E[%sm|g' /usr/share/terminfo/src/terminfo.src", ascii);
+    //system(cmd);
 
     // Rebuild terminfo
-    system("tic -x -1 -o /usr/share/terminfo /usr/share/terminfo/src/terminfo.src");
+    //system("tic -x -1 -o /usr/share/terminfo /usr/share/terminfo/src/terminfo.src");
+}
+
+/**
+ * Apply the selected colour to all virtual terminals
+ * @param ascii Selected colour's ASCII value
+ */
+void applyColourTtys(char *ascii)
+{
+    // TODO: dynamically get number of TTYs
+    // SHORK 486 always has 3 at least...
+    for (int t = 1; t <= 3; t++)
+    {
+        char ttyPath[32];
+        snprintf(ttyPath, sizeof(ttyPath), "/dev/tty%d", t);
+
+        int tty = open(ttyPath, O_WRONLY | O_NOCTTY);
+        if (tty < 0) continue;
+
+        dprintf(tty, "\033[%sm", ascii);
+        close(tty);
+    }
 }
 
 /**
@@ -347,9 +369,14 @@ int main(int argc, char *argv[])
             if (ascii)
             {
                 writeConf(argv[2], ascii, CONFIG.font);
-                applyColour(ascii);
-                killParentTerminal();
-                printf("\033[%smApplied colour: %s\033[0m\n", ascii, argv[2]);
+                applyColourFiles(ascii);
+                applyColourTtys(ascii);
+
+                char out[200];
+                snprintf(out, 200, "Applied colour: %s. For other virtual terminals, you may need to enter \"exit\" when convenient, or restart your computer before this change will take complete effect.\n", argv[2]);
+                formatNewLines(out, TERM_SIZE.ws_col);
+                printf("%s", out);
+
                 return 0;
             }
         }
@@ -360,11 +387,11 @@ int main(int argc, char *argv[])
                 writeConf(CONFIG.colour.name, CONFIG.colour.ascii, "default");
 
                 char out[160];
-                snprintf(out, sizeof(out), "Applied font: default. If a font other than \"default\" was previously applied, you must restart your computer before this change will take effect.\n");
+                snprintf(out, 160, "Applied font: default. If a font other than \"default\" was previously applied, you must restart your computer before this change will take effect.\n");
                 formatNewLines(out, TERM_SIZE.ws_col);
                 printf("%s", out);
 
-                return 1;
+                return 0;
             }
             else
             {
@@ -374,7 +401,7 @@ int main(int argc, char *argv[])
                     writeConf(CONFIG.colour.name, CONFIG.colour.ascii, font);
                     applyFont(font);
                     printf("Applied font: %s\n", font);
-                    return 1;
+                    return 0;
                 }
             }
         }
