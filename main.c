@@ -16,6 +16,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <linux/limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -108,12 +109,12 @@ void applyColourTtys(char *ascii)
 }
 
 /**
- * Apply the selected font
- * @param font Selected font's path
+ * Applies the given font using setfont.
+ * @param font Path to font
  */
 void applyFont(char *font)
 {
-    char cmd[256];
+    char cmd[PATH_MAX + 8];
     snprintf(cmd, sizeof(cmd), "setfont %s", font);
     system(cmd);
 }
