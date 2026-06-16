@@ -1,4 +1,8 @@
-# shorkfont
+# SHORKFONT
+
+**Notice 2026-06-17:** SHORKFONT's functionality has been merged into [SHORKSET](https://github.com/SharktasticA/shorkset) to unify settings-style SHORK Utilities into one. This repo will now be archived.
+
+-----
 
 A utility for SHORK Operating Systems that changes the console terminal's foreground (text) colour or PC Screen Font (PSF) font. It takes two arguments (type of change and new name); running it without an argument shows how to use the utility and a list of possible colours. Any changes made will be stored in `/etc/shorkfont.conf` and will be reloaded upon reboot.
 
